@@ -1,0 +1,17 @@
+{
+  "name": "douyin-comment-fetcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Douyin creator center automation tools.",
+  "scripts": {
+    "auth": "node ./src/auth-douyin.mjs",
+    "view": "node ./src/open-douyin-view.mjs",
+    "works": "node ./src/list-douyin-works.mjs",
+    "comments:export": "node ./src/export-douyin-comments.mjs",
+    "comments:reply": "node ./src/reply-douyin-comments.mjs",
+    "article:publish": "node ./src/publish-douyin-article.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}
