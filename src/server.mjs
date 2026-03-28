@@ -45,8 +45,8 @@ app.post("/api/comments", (req, res) => {
     params.push(work);
   }
   if (q) {
-    conditions.push("(username LIKE ? OR comment_text LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`);
+    conditions.push("comment_text LIKE ?");
+    params.push(`%${q}%`);
   }
   if (replied === true || replied === 1) {
     conditions.push("reply_message IS NOT NULL AND reply_message != ''");
@@ -78,7 +78,7 @@ const HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>DOUYIN // COMMENT TERMINAL</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -263,6 +263,39 @@ const HTML = `<!DOCTYPE html>
   .blink { animation: blink 1.2s infinite; }
 
   .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Mobile ── */
+  @media (max-width: 768px) {
+    body { height: auto; overflow: auto; }
+
+    header { padding: 8px 14px; gap: 12px; }
+    .logo { font-size: 16px; letter-spacing: 2px; }
+    .stats-bar { gap: 12px; }
+    .stat-val { font-size: 16px; }
+    .stats-bar > .stat:last-child { display: none; } /* 隐藏 REPLIED stat 节省空间 */
+
+    .wc-body { height: 160px; }
+
+    .toolbar { gap: 8px; padding: 8px 10px; }
+    .search-wrap { min-width: 100%; order: 1; }
+    .filter-group { order: 2; gap: 4px; }
+    .filter-btn { padding: 5px 8px; font-size: 10px; }
+    #kwTag { order: 3; }
+    .result-info { order: 4; width: 100%; }
+
+    table { font-size: 12px; }
+    thead th { padding: 6px 8px; font-size: 10px; letter-spacing: 1px; }
+    td { padding: 8px; }
+    .td-user { width: 70px; }
+    .td-reply { display: none; }
+    thead th:last-child { display: none; }
+
+    .pagination { padding: 8px 10px; }
+    .page-btn { padding: 5px 10px; font-size: 11px; }
+
+    .content { overflow: visible; }
+    .table-wrap { overflow: visible; height: auto; }
+  }
 </style>
 </head>
 <body>
@@ -292,7 +325,7 @@ const HTML = `<!DOCTYPE html>
 <div class="content">
   <div class="toolbar">
     <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="搜索用户名 / 评论内容..." />
+      <input type="text" id="searchInput" placeholder="搜索评论内容..." />
       <button class="clear-btn" id="clearBtn" onclick="clearSearch()">✕</button>
     </div>
     <div id="kwTag" style="display:none"></div>
