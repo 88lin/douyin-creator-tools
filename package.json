@@ -12,7 +12,8 @@
     "comments:reply": "node ./src/reply-douyin-comments.mjs",
     "article:publish": "node ./src/publish-douyin-article.mjs",
     "server": "PORT=8765 node ./src/server.mjs",
-    "wordcloud": "node ./src/compute-wordcloud.mjs"
+    "wordcloud": "node ./src/compute-wordcloud.mjs",
+    "debug:user": "node ./src/debug-user.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",

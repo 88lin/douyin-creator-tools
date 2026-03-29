@@ -57,7 +57,7 @@ app.post("/api/comments", (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const countRow = db.prepare(`SELECT COUNT(*) AS total FROM comments ${where}`).get(...params);
-  const rows = db.prepare(`SELECT id, work_title, username, comment_text, reply_message FROM comments ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const rows = db.prepare(`SELECT id, work_title, username, comment_text, reply_message, comment_time, reply_count FROM comments ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
 
   res.json({ total: countRow.total, page, limit, comments: rows });
 });
@@ -79,7 +79,7 @@ const HTML = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DOUYIN // COMMENT TERMINAL</title>
+<title>阿里虾的日记</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -220,8 +220,76 @@ const HTML = `<!DOCTYPE html>
 
   .td-user { width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--cyan); font-size: 12px; }
   .td-comment { color: var(--text); line-height: 1.5; word-break: break-all; }
-  .td-reply { width: 220px; font-size: 12px; color: var(--green); word-break: break-all; line-height: 1.5; }
-  .td-reply.empty { color: var(--border); font-style: italic; }
+  .td-time { width: 90px; white-space: nowrap; color: var(--dim); font-size: 11px; }
+  .td-rcnt { width: 52px; text-align: center; vertical-align: middle; color: var(--dim); font-size: 11px; }
+  .td-rcnt.hot { color: var(--yellow); text-shadow: 0 0 6px rgba(255,230,0,0.5); }
+  .th-gate { width: 88px; text-align: center !important; letter-spacing: 2px; }
+  .td-gate { width: 88px; text-align: center; vertical-align: middle; }
+  .reply-gate {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 5px 10px; font-family: 'Share Tech Mono', monospace; font-size: 10px;
+    letter-spacing: 1px; cursor: pointer; border: 1px solid var(--green);
+    color: var(--green); background: rgba(0,255,157,0.06);
+    box-shadow: 0 0 10px rgba(0,255,157,0.25), inset 0 0 12px rgba(0,255,157,0.05);
+    text-shadow: 0 0 8px var(--green); transition: all 0.15s;
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  }
+  .reply-gate:hover {
+    background: rgba(0,255,157,0.14); box-shadow: 0 0 16px rgba(0,255,157,0.45);
+    color: #b8ffe8; border-color: var(--cyan); text-shadow: 0 0 10px var(--cyan);
+  }
+  .reply-gate:active { transform: scale(0.97); }
+  .td-gate--empty { color: var(--border); font-size: 11px; font-style: italic; }
+
+  /* ── Reply modal (cyberpunk overlay) ── */
+  .reply-modal {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .reply-modal.open { opacity: 1; pointer-events: auto; }
+  .reply-modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(2,2,12,0.88);
+    backdrop-filter: blur(4px);
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,249,0.03) 2px, rgba(0,255,249,0.03) 4px),
+      linear-gradient(135deg, rgba(255,0,200,0.08) 0%, transparent 50%, rgba(0,255,249,0.06) 100%);
+  }
+  .reply-modal-panel {
+    position: relative; max-width: 520px; width: 100%; max-height: min(70vh, 480px);
+    display: flex; flex-direction: column;
+    background: var(--bg2);
+    border: 1px solid var(--magenta);
+    box-shadow:
+      0 0 0 1px rgba(0,255,249,0.3),
+      0 0 40px rgba(255,0,200,0.25),
+      inset 0 0 60px rgba(0,255,249,0.04);
+    clip-path: polygon(0 12px, 12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+  }
+  .reply-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, rgba(255,0,200,0.12), transparent);
+  }
+  .reply-modal-title {
+    font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 13px;
+    letter-spacing: 4px; color: var(--magenta); text-shadow: 0 0 10px var(--magenta);
+  }
+  .reply-modal-user { font-size: 11px; color: var(--cyan); margin-top: 4px; letter-spacing: 1px; }
+  .reply-modal-close {
+    background: transparent; border: 1px solid var(--border); color: var(--dim);
+    width: 32px; height: 32px; cursor: pointer; font-size: 16px; line-height: 1;
+    transition: all 0.15s;
+  }
+  .reply-modal-close:hover { border-color: var(--magenta); color: var(--magenta); box-shadow: 0 0 10px rgba(255,0,200,0.3); }
+  .reply-modal-body {
+    padding: 16px 18px; overflow-y: auto; flex: 1;
+    font-size: 13px; line-height: 1.65; color: var(--green);
+    text-shadow: 0 0 6px rgba(0,255,157,0.35); word-break: break-all;
+  }
+  .reply-modal-body::-webkit-scrollbar { width: 4px; }
+  .reply-modal-body::-webkit-scrollbar-thumb { background: var(--magenta); }
 
   .hl { background: rgba(255,230,0,0.2); color: var(--yellow); border-radius: 2px; }
 
@@ -287,8 +355,9 @@ const HTML = `<!DOCTYPE html>
     thead th { padding: 6px 8px; font-size: 10px; letter-spacing: 1px; }
     td { padding: 8px; }
     .td-user { width: 70px; }
-    .td-reply { display: none; }
-    thead th:last-child { display: none; }
+    .th-gate { width: 64px; }
+    .td-gate { width: 64px; }
+    .reply-gate { padding: 4px 6px; font-size: 9px; letter-spacing: 0; }
 
     .pagination { padding: 8px 10px; }
     .page-btn { padding: 5px 10px; font-size: 11px; }
@@ -343,6 +412,20 @@ const HTML = `<!DOCTYPE html>
     <button class="page-btn" id="btnPrev" onclick="gotoPage(state.page-1)" disabled>◀ PREV</button>
     <div class="page-info">PAGE <span id="pageNum">1</span> / <span id="pageTotal">1</span></div>
     <button class="page-btn" id="btnNext" onclick="gotoPage(state.page+1)" disabled>NEXT ▶</button>
+  </div>
+</div>
+
+<div class="reply-modal" id="replyModal" aria-hidden="true">
+  <div class="reply-modal-backdrop" id="replyModalBackdrop"></div>
+  <div class="reply-modal-panel" role="dialog" aria-labelledby="replyModalTitle">
+    <div class="reply-modal-head">
+      <div>
+        <div class="reply-modal-title" id="replyModalTitle">// REPLY_BUFFER</div>
+        <div class="reply-modal-user" id="replyModalUser"></div>
+      </div>
+      <button type="button" class="reply-modal-close" id="replyModalClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="reply-modal-body" id="replyModalBody"></div>
   </div>
 </div>
 
@@ -419,23 +502,60 @@ function highlight(text, q) {
   return result + esc(text.slice(last));
 }
 
+function escAttr(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function renderTable(rows, total) {
   document.getElementById('totalCount').textContent = total;
   const wrap = document.getElementById('tableWrap');
   if (!rows.length) { wrap.innerHTML = '<div class="empty-state">无匹配数据</div>'; return; }
 
-  let html = \`<table><thead><tr><th>USER</th><th>COMMENT</th><th>REPLY</th></tr></thead><tbody>\`;
+  let html = \`<table><thead><tr><th>USER</th><th>COMMENT</th><th>DATE</th><th style="width:52px;text-align:center">RX#</th><th class="th-gate">RX</th></tr></thead><tbody>\`;
   for (const row of rows) {
     const hasReply = row.reply_message?.trim();
+    const gateCell = hasReply
+      ? \`<td class="td-gate"><button type="button" class="reply-gate" data-user="\${escAttr(maskUser(row.username))}" data-reply="\${escAttr(row.reply_message)}">▸ ECHO</button></td>\`
+      : \`<td class="td-gate td-gate--empty">—</td>\`;
+    const rcnt = row.reply_count ?? 0;
+    const rcntClass = rcnt > 2 ? 'td-rcnt hot' : 'td-rcnt';
     html += \`<tr>
       <td class="td-user">\${esc(maskUser(row.username))}</td>
       <td class="td-comment">\${highlight(row.comment_text, state.q)}</td>
-      <td class="td-reply \${hasReply ? '' : 'empty'}">\${hasReply ? esc(row.reply_message) : '—'}</td>
+      <td class="td-time">\${esc(row.comment_time || '')}</td>
+      <td class="\${rcntClass}">\${rcnt}</td>
+      \${gateCell}
     </tr>\`;
   }
   html += '</tbody></table>';
   wrap.innerHTML = html;
 }
+
+function openReplyModal(userMasked, replyText) {
+  const modal = document.getElementById('replyModal');
+  document.getElementById('replyModalUser').textContent = userMasked ? \`FROM // \${userMasked}\` : '';
+  document.getElementById('replyModalBody').textContent = replyText || '';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeReplyModal() {
+  const modal = document.getElementById('replyModal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('tableWrap').addEventListener('click', (e) => {
+  const btn = e.target.closest('.reply-gate');
+  if (!btn) return;
+  openReplyModal(btn.getAttribute('data-user') || '', btn.getAttribute('data-reply') || '');
+});
+
+document.getElementById('replyModalBackdrop').addEventListener('click', closeReplyModal);
+document.getElementById('replyModalClose').addEventListener('click', closeReplyModal);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeReplyModal();
+});
 
 function renderPagination(total) {
   const pages = Math.max(1, Math.ceil(total / state.limit));

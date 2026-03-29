@@ -23,7 +23,7 @@ import {
   getSelectedWorkOutput,
   getWorksOutput
 } from "./lib/works-panel.mjs";
-import { upsertComments } from "./lib/db-ops.mjs";
+import { getReplyCountMap, getUserHistoryMap, incrementReplyCount, upsertComments } from "./lib/db-ops.mjs";
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 60000;
 const DEFAULT_UI_TIMEOUT_MS = 30000;
@@ -176,14 +176,38 @@ export async function exportUnrepliedComments(options = {}) {
 
     const selectedWorkOutput = getSelectedWorkOutput(targetWork) ?? { title: "" };
 
+    // 在写入当前批次之前查询历史 & 回复次数，确保数据只含过去记录
+    let historyMap = new Map();
+    let replyCountMap = new Map();
+    try {
+      historyMap = getUserHistoryMap(comments.map((c) => c.username));
+      replyCountMap = getReplyCountMap(selectedWorkOutput.title, comments.map((c) => ({
+        username: c.username,
+        commentText: c.commentText
+      })));
+    } catch (dbError) {
+      console.warn(`[db] 查询历史/回复次数失败（不影响主流程）: ${dbError?.message ?? dbError}`);
+    }
+
+    // 过滤掉已回复次数 >= 2 的评论
+    const exportComments = comments.filter((c) => {
+      const count = replyCountMap.get(`${c.username}|||${c.commentText}`) ?? 0;
+      return count < 2;
+    });
+    const skipped = comments.length - exportComments.length;
+    if (skipped > 0) {
+      console.log(`[db] 过滤掉 ${skipped} 条回复次数 >= 2 的评论`);
+    }
+
     await emitResult(
       {
         selectedWork: selectedWorkOutput,
-        count: comments.length,
-        comments: comments.map((comment) => ({
+        count: exportComments.length,
+        comments: exportComments.map((comment) => ({
           username: comment.username,
           commentText: comment.commentText,
-          replyMessage: ""
+          replyMessage: "",
+          history: historyMap.get(comment.username) ?? []
         }))
       },
       outputPath
@@ -250,13 +274,37 @@ export async function exportAllComments(options = {}) {
 
     const selectedWorkOutput = getSelectedWorkOutput(targetWork) ?? { title: "" };
 
+    // 在写入当前批次之前查询历史 & 回复次数，确保数据只含过去记录
+    let historyMap = new Map();
+    let replyCountMap = new Map();
+    try {
+      historyMap = getUserHistoryMap(comments.map((c) => c.username));
+      replyCountMap = getReplyCountMap(selectedWorkOutput.title, comments.map((c) => ({
+        username: c.username,
+        commentText: c.commentText
+      })));
+    } catch (dbError) {
+      console.warn(`[db] 查询历史/回复次数失败（不影响主流程）: ${dbError?.message ?? dbError}`);
+    }
+
+    // 过滤掉已回复次数 >= 2 的评论
+    const exportComments = comments.filter((c) => {
+      const count = replyCountMap.get(`${c.username}|||${c.commentText}`) ?? 0;
+      return count < 2;
+    });
+    const skipped = comments.length - exportComments.length;
+    if (skipped > 0) {
+      console.log(`[db] 过滤掉 ${skipped} 条回复次数 >= 2 的评论`);
+    }
+
     await emitResult(
       {
         selectedWork: selectedWorkOutput,
-        count: comments.length,
-        comments: comments.map((comment) => ({
+        count: exportComments.length,
+        comments: exportComments.map((comment) => ({
           username: comment.username,
-          commentText: comment.commentText
+          commentText: comment.commentText,
+          history: historyMap.get(comment.username) ?? []
         }))
       },
       outputPath
@@ -282,11 +330,34 @@ export async function replyComments(options = {}) {
   }
 
   const replyCommentsSource = await loadReplyCommentsFile(options.planFile);
-  const replyPlans = replyCommentsSource.plans ?? [];
+  const allReplyPlans = replyCommentsSource.plans ?? [];
   const selectedWorkHint = replyCommentsSource.selectedWork;
 
   if (!selectedWorkHint?.title) {
     throw new Error("Reply plan file must contain selectedWork.title.");
+  }
+
+  // 过滤掉 reply_count > 2 的评论（已尝试回复超过 2 次，不再重复）
+  let replyPlans = allReplyPlans;
+  try {
+    const replyCountMap = getReplyCountMap(selectedWorkHint.title, allReplyPlans.map((p) => ({
+      username: p.username,
+      commentText: p.commentText
+    })));
+    const skippedByCount = [];
+    replyPlans = allReplyPlans.filter((plan) => {
+      const count = replyCountMap.get(`${plan.username}|||${plan.commentText}`) ?? 0;
+      if (count > 2) {
+        skippedByCount.push({ username: plan.username, replyCount: count });
+        return false;
+      }
+      return true;
+    });
+    if (skippedByCount.length > 0) {
+      console.log(`[db] 跳过 ${skippedByCount.length} 条回复次数 > 2 的评论`);
+    }
+  } catch (dbError) {
+    console.warn(`[db] 查询回复次数失败（继续使用全部计划）: ${dbError?.message ?? dbError}`);
   }
 
   const outputPath = options.outputPath || DEFAULT_REPLY_OUTPUT_PATH;
@@ -343,6 +414,20 @@ export async function replyComments(options = {}) {
       upsertComments(selectedWorkOutput?.title ?? selectedWorkHint.title, dbRows);
     } catch (dbError) {
       console.warn(`[db] 写入回复失败（不影响主流程）: ${dbError?.message ?? dbError}`);
+    }
+
+    // 对本次实际成功回复的评论，在数据库中递增 reply_count
+    try {
+      const workTitleForDb = selectedWorkOutput?.title ?? selectedWorkHint.title;
+      const repliedResults = replySummary.results.filter((r) => r.status === "replied");
+      for (const r of repliedResults) {
+        incrementReplyCount(workTitleForDb, r.username, r.commentText);
+      }
+      if (repliedResults.length > 0) {
+        console.log(`[db] 已更新 ${repliedResults.length} 条评论的回复计数`);
+      }
+    } catch (dbError) {
+      console.warn(`[db] 更新回复计数失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
 
     if (keepBrowserOpenAfterRun) {
