@@ -40,8 +40,13 @@ export function normalizeLookupText(value = "") {
   return normalizeText(value).toLowerCase();
 }
 
+/** 作品标题：去空白后的完整字符串（与导出 JSON 的 title、匹配用 lookup 同源） */
+export function canonicalWorkTitle(value = "") {
+  return normalizeText(String(value ?? "")).replace(/\s+/g, "");
+}
+
 export function normalizeWorkTitle(value = "", maxLength = 15) {
-  return normalizeText(value).replace(/\s+/g, "").slice(0, maxLength);
+  return canonicalWorkTitle(value).slice(0, maxLength);
 }
 
 export function normalizeWorkTitleLookupKey(value = "", maxLength = 15) {

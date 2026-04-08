@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  canonicalWorkTitle,
   logReplyFilterDebug,
   normalizeText,
-  normalizeUsername,
-  normalizeWorkTitle
+  normalizeUsername
 } from "./common.mjs";
 
 function normalizeSelectedWorkHint(rawWork) {
@@ -12,15 +12,17 @@ function normalizeSelectedWorkHint(rawWork) {
     return null;
   }
 
-  const title = normalizeText(String(rawWork.title ?? ""));
   const publishText = normalizeText(String(rawWork.publishText ?? rawWork.publish_text ?? ""));
+  const title =
+    canonicalWorkTitle(rawWork.title ?? "") ||
+    canonicalWorkTitle(rawWork.shortKey ?? rawWork.short_key ?? "");
 
   if (!title) {
     return null;
   }
 
   return {
-    title: normalizeWorkTitle(title),
+    title,
     publishText
   };
 }

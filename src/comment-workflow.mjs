@@ -443,15 +443,33 @@ export async function replyComments(options = {}) {
       console.warn(`[db] 写入回复失败（不影响主流程）: ${dbError?.message ?? dbError}`);
     }
 
-    // 对本次实际成功回复的评论，在数据库中递增 reply_count
+    // 对本次实际成功回复的评论，在数据库中递增 reply_count。
+    // 必须用 plan 里的 username/commentText：页面上 fuzzy 匹配到的正文可能与库里（导出 JSON）不完全一致，
+    // 若用快照字符串 UPDATE 会 0 行，reply_count 不增，导致同一评论被反复导出、反复回复。
     try {
       const workTitleForDb = selectedWorkOutput?.title ?? selectedWorkHint.title;
+      const planById = new Map(replyPlans.map((p) => [p.id, p]));
       const repliedResults = replySummary.results.filter((r) => r.status === "replied");
+      let updatedRows = 0;
+      let missedRows = 0;
       for (const r of repliedResults) {
-        incrementReplyCount(workTitleForDb, r.username, r.commentText);
+        const plan = r.replyPlanId != null ? planById.get(r.replyPlanId) : null;
+        const username = plan?.username ?? r.username;
+        const commentText = plan?.commentText ?? r.commentText;
+        const changes = incrementReplyCount(workTitleForDb, username, commentText);
+        if (changes > 0) {
+          updatedRows += 1;
+        } else {
+          missedRows += 1;
+        }
       }
-      if (repliedResults.length > 0) {
-        console.log(`[db] 已更新 ${repliedResults.length} 条评论的回复计数`);
+      if (updatedRows > 0) {
+        console.log(`[db] 已更新 ${updatedRows} 条评论的回复计数`);
+      }
+      if (missedRows > 0) {
+        console.warn(
+          `[db] 有 ${missedRows} 条成功回复未在库中匹配到行（reply_count 未增加），请核对作品标题与导出 plan 是否一致`
+        );
       }
     } catch (dbError) {
       console.warn(`[db] 更新回复计数失败（不影响主流程）: ${dbError?.message ?? dbError}`);

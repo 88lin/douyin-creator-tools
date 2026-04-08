@@ -1,10 +1,8 @@
 import {
-  findDistinctKeywords,
+  canonicalWorkTitle,
   getEffectiveTimeout,
   logReplyFilterDebug,
   normalizeLookupText,
-  normalizeText,
-  normalizeWorkTitle,
   normalizeWorkTitleLookupKey,
   waitForAsyncCondition
 } from "./common.mjs";
@@ -31,8 +29,6 @@ async function openWorksSideSheet(page, options) {
 async function inspectWorksInSideSheet(sideSheet) {
   return sideSheet.evaluate((root) => {
     const normalize = (value = "") => value.replace(/\s+/g, " ").trim();
-    const normalizeWorkTitleForMatch = (value = "") =>
-      normalize(value).replace(/\s+/g, "").slice(0, 15);
     const splitLines = (value = "") =>
       value
         .split(/\n+/)
@@ -90,8 +86,10 @@ async function inspectWorksInSideSheet(sideSheet) {
       const publishText = lines.find((line) => line.includes("发布于")) || "";
       const rawTitle =
         lines.find((line) => line && !line.includes("发布于")) || `作品-${index + 1}`;
-      const title = normalizeWorkTitleForMatch(rawTitle) || `作品${index + 1}`;
-      node.setAttribute("data-codex-work-title-key", title.toLowerCase());
+      const fullCompact = normalize(rawTitle).replace(/\s+/g, "") || "";
+      const title = fullCompact || `作品${index + 1}`;
+      const titleKey = (fullCompact.slice(0, 15) || title).toLowerCase();
+      node.setAttribute("data-codex-work-title-key", titleKey);
       node.setAttribute("data-codex-work-publish-key", normalize(publishText).toLowerCase());
 
       return {
@@ -104,7 +102,11 @@ async function inspectWorksInSideSheet(sideSheet) {
 }
 
 async function extractWorksFromSideSheet(sideSheet) {
-  const works = await inspectWorksInSideSheet(sideSheet);
+  const rawWorks = await inspectWorksInSideSheet(sideSheet);
+  const works = rawWorks.map((work) => ({
+    ...work,
+    title: canonicalWorkTitle(work.title) || work.title
+  }));
 
   const seen = new Set();
   return works.filter((work) => {
@@ -430,12 +432,8 @@ function ensureSelectableWork(targetWork) {
 }
 
 export function getWorksOutput(works) {
-  const titles = works.map((work) => normalizeWorkTitle(work.title) || work.title);
-  const keywords = findDistinctKeywords(titles);
-
-  return works.map((work, i) => ({
-    title: titles[i],
-    keyword: keywords[i].keyword,
+  return works.map((work) => ({
+    title: canonicalWorkTitle(work.title) || String(work.title ?? ""),
     publishText: work.publishText
   }));
 }
@@ -446,7 +444,7 @@ export function getSelectedWorkOutput(work) {
   }
 
   return {
-    title: normalizeWorkTitle(work.title) || work.title,
+    title: canonicalWorkTitle(work.title) || String(work.title ?? ""),
     publishText: work.publishText
   };
 }

@@ -122,16 +122,20 @@ export function getUserHistoryMap(usernames) {
  * @param {string} workTitle
  * @param {string} username
  * @param {string} commentText
+ * @returns {number} 实际更新的行数（0 表示未匹配到库中记录）
  */
 export function incrementReplyCount(workTitle, username, commentText) {
   if (!workTitle || !username || !commentText) {
-    return;
+    return 0;
   }
   const db = getDb();
-  db.prepare(
-    `
+  const info = db
+    .prepare(
+      `
     UPDATE comments SET reply_count = reply_count + 1
     WHERE work_title = ? AND username = ? AND comment_text = ?
   `
-  ).run(workTitle, username, commentText);
+    )
+    .run(workTitle, username, commentText);
+  return info.changes ?? 0;
 }
