@@ -17,23 +17,12 @@
 ## 环境要求
 
 - **Node.js** >= 20（推荐 22 LTS）
-- **Playwright Chromium**（安装时自动下载）
 
 ## 安装
 
 ```bash
 npm install
 npx playwright install chromium
-```
-
-## 目录结构
-
-```
-src/                  # CLI 入口脚本
-src/lib/              # 核心库（浏览器操作、评论流程、数据库等）
-example/              # 示例文件（发布文章 JSON、封面图）
-data/                 # 运行时数据（SQLite 数据库，已 gitignore）
-comments-output/      # 导出结果（已 gitignore）
 ```
 
 ## 登录
@@ -130,7 +119,7 @@ npm run article:publish -- article.json
 ```
 - `imagePaths`（必填）：图片路径数组，最多 35 张，支持 jpg/jpeg/png/webp 格式
 - `title`（可选）：作品标题，最多 20 字
-- `description`（可选）：作品描述，最多 1000 字
+- `description`（可选）：作品描述，最多 800 字
 - `music`（可选）：配乐名称
 - 相对路径按 JSON 文件所在目录解析
 
