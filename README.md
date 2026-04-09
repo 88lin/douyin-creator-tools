@@ -10,7 +10,7 @@
 | `npm run works`               | 获取作品列表                |
 | `npm run comments:export`     | 导出未回复评论              |
 | `npm run comments:reply`      | 批量回复评论                |
-| `npm run article:publish`     | 发布图文文章                |
+| `npm run article:publish`     | 发布文章                    |
 | `npm run imagetext:publish`   | 发布图文（多图）            |
 | `npm run view`                | 手动打开创作者中心页面        |
 

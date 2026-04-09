@@ -21,7 +21,7 @@ alwaysApply: true
 | `comments:export` | `src/export-douyin-comments.mjs` | 单作品导出未回复评论 |
 | `comments:export-all` | `src/export-all-douyin-comments.mjs` | 批量导出 |
 | `comments:reply` | `src/reply-douyin-comments.mjs` | 按 JSON 批量回复 |
-| `article:publish` | `src/publish-douyin-article.mjs` | 图文文章；示例 `example/publish_article.json` |
+| `article:publish` | `src/publish-douyin-article.mjs` | 文章（发文章页）；示例 `example/publish_article.json` |
 | `imagetext:publish` | `src/publish-douyin-imagetext.mjs` | 多图图文；示例 `example/publish_imagetext.json` |
 | `server` | `src/server.mjs` | 本地 HTTP 服务 |
 | `wordcloud` | `src/compute-wordcloud.mjs` | 词云 |
