@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-04-20
+
+### OpenClaw Skill
+
+- 新增 AgentSkills 规范 skill `skills/douyin-creator/SKILL.md`（单文件、纯面向 AI），专供 OpenClaw 调用，覆盖获取作品列表、导出未回复评论、批量回复评论
+- 固定仓库 clone 位置为 `~/.openclaw/douyin-creator-tools`，skill 加载由 OpenClaw 自动处理（如 `extraDirs`），无需 symlink / 环境变量 / 手工配置
+- SKILL.md 中 `$PROJECT_DIR` 硬编码为 `~/.openclaw/douyin-creator-tools`
+
+### 文档
+
+- `README.md` 重写为面向 OpenClaw Agent 的指令文档，覆盖仓库位置、首次初始化（node / 依赖 / chromium / 扫码登录）、能力概览、硬约束；只包含 `auth` / `works` / `comments:export` / `comments:reply` 四个命令，文章/图文发布等其他脚本仍在 `src/` 但文档不再提及
+
 ## 2026-04-16
 
 ### 评论导出
